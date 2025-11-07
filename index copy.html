@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chat RenalCare</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #chat-container {
+      width: 400px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #header {
+      background: #007bff;
+      color: white;
+      padding: 10px;
+      text-align: center;
+    }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+    }
+    .msg {
+      margin: 6px 0;
+      padding: 8px 10px;
+      border-radius: 10px;
+      max-width: 75%;
+      word-wrap: break-word;
+      position: relative;
+    }
+    .mine {
+      background: #007bff;
+      color: white;
+      align-self: flex-end;
+    }
+    .theirs {
+      background: #e5e5e5;
+      align-self: flex-start;
+    }
+    .user-name {
+      font-size: 0.75em;
+      opacity: 0.7;
+      margin-bottom: 2px;
+    }
+    .msg-buttons {
+      position: absolute;
+      top: 2px;
+      right: 6px;
+      display: flex;
+      gap: 5px;
+    }
+    .msg-buttons button {
+      border: none;
+      background: transparent;
+      color: white;
+      cursor: pointer;
+      font-size: 0.8em;
+      opacity: 0.8;
+    }
+    .msg-buttons button:hover {
+      opacity: 1;
+    }
+    .theirs .msg-buttons button {
+      color: #333;
+    }
+    #form {
+      display: flex;
+      padding: 10px;
+      gap: 5px;
+    }
+    #form input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    #form button {
+      padding: 8px 15px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="chat-container">
+    <div id="header">💬 Chat RenalCare</div>
+    <div id="messages"></div>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Escribe un mensaje..." />
+      <button>Enviar</button>
+    </form>
+  </div>
+
+  <script>
+    // 🔧 Configuración inicial
+    const API_URL = "http://localhost:3000"; // tu backend Express
+    const socket = io(API_URL);
+
+    // 🔸 Datos simulados (reemplázalos con los del usuario logueado)
+    const id_conversacion = 1;
+    const id_emisor = 1;
+    const nombre_emisor = "";
+
+    // DOM
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+
+    socket.emit("joinRoom", id_conversacion);
+
+    // 🔹 Cargar historial
+    async function cargarHistorial() {
+      try {
+        const res = await fetch(`${API_URL}/conversaciones/${id_conversacion}/mensajes`);
+        const historial = await res.json();
+        if (Array.isArray(historial)) historial.forEach(addMessage);
+      } catch (err) {
+        console.error("Error al cargar historial:", err);
+      }
+    }
+
+    // 🔹 Enviar mensaje
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (input.value.trim() === '') return;
+
+      const data = {
+        id_conversacion,
+        id_emisor,
+        contenido: input.value,
+        tipo: "texto"
+      };
+
+      socket.emit("sendMessage", data);
+      addMessage({ ...data, id_mensaje: Date.now(), nombre: nombre_emisor });
+      input.value = '';
+    });
+
+    // 🔹 Escuchar eventos
+    socket.on("newMessage", (mensaje) => addMessage(mensaje));
+socket.on("messageEdited", (mensaje) => {
+  const msgDiv = document.querySelector(`[data-id="${mensaje.id_mensaje}"]`);
+  if (msgDiv) {
+    const msgTextDiv = msgDiv.querySelector('.msg-text');
+    if (msgTextDiv) {
+      msgTextDiv.textContent = mensaje.contenido + " ✎";
+    }
+  }
+});
+
+    socket.on("messageDeleted", (id_mensaje) => {
+      const msgDiv = document.querySelector(`[data-id="${id_mensaje}"]`);
+      if (msgDiv) msgDiv.remove();
+    });
+
+    // 🔹 Mostrar mensaje
+    function addMessage(m) {
+      const div = document.createElement('div');
+      div.classList.add('msg', m.id_emisor === id_emisor ? 'mine' : 'theirs');
+      div.dataset.id = m.id_mensaje || Math.random();
+
+      const name = document.createElement('div');
+      name.classList.add('user-name');
+      name.textContent = m.nombre || (m.id_emisor === id_emisor ? 'Tú' : `Usuario ${m.id_emisor}`);
+
+      const text = document.createElement('div');
+      text.classList.add('msg-text');
+      text.textContent = m.contenido;
+
+      div.appendChild(name);
+      div.appendChild(text);
+
+      // Si es mío → mostrar botones editar / eliminar
+      if (m.id_emisor === id_emisor) {
+        const buttons = document.createElement('div');
+        buttons.classList.add('msg-buttons');
+        buttons.innerHTML = `
+          <button class="edit-btn" title="Editar">✎</button>
+          <button class="delete-btn" title="Eliminar">🗑️</button>
+        `;
+        div.appendChild(buttons);
+      }
+
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    // 🔹 Delegar eventos para botones
+    messages.addEventListener('click', (e) => {
+      const msgDiv = e.target.closest('.msg');
+      if (!msgDiv) return;
+
+      const id_mensaje = msgDiv.dataset.id;
+      const msgTextDiv = msgDiv.querySelector('.msg-text');
+
+      // Editar mensaje
+      if (e.target.classList.contains('edit-btn')) {
+        const nuevoTexto = prompt("Editar mensaje:", msgTextDiv.textContent);
+        if (nuevoTexto && nuevoTexto.trim() !== "") {
+          socket.emit("editMessage", {
+            id_mensaje,
+            id_emisor,
+            id_conversacion,
+            contenido: nuevoTexto,
+            tipo: "texto"
+          });
+          msgTextDiv.textContent = nuevoTexto + " ✎";
+        }
+      }
+
+      // Eliminar mensaje
+      if (e.target.classList.contains('delete-btn')) {
+        if (confirm("¿Eliminar este mensaje?")) {
+          socket.emit("deleteMessage", { id_mensaje, id_conversacion });
+          msgDiv.remove();
+        }
+      }
+    });
+
+    cargarHistorial();
+  </script>
+</body>
+</html>
