@@ -59,6 +59,11 @@
       opacity: 0.7;
       margin-bottom: 2px;
     }
+    .msg img {
+      max-width: 200px;
+      border-radius: 8px;
+      margin-top: 5px;
+    }
     .msg-buttons {
       position: absolute;
       top: 2px;
@@ -84,12 +89,16 @@
       display: flex;
       padding: 10px;
       gap: 5px;
+      align-items: center;
     }
-    #form input {
+    #form input[type="text"] {
       flex: 1;
       padding: 8px;
       border: 1px solid #ccc;
       border-radius: 5px;
+    }
+    #form input[type="file"] {
+      width: 30px;
     }
     #form button {
       padding: 8px 15px;
@@ -105,30 +114,28 @@
   <div id="chat-container">
     <div id="header">💬 Chat RenalCare</div>
     <div id="messages"></div>
-    <form id="form">
-      <input id="input" autocomplete="off" placeholder="Escribe un mensaje..." />
+    <form id="form" enctype="multipart/form-data">
+      <input id="input" type="text" autocomplete="off" placeholder="Escribe un mensaje..." />
+      <input id="fileInput" type="file" accept="image/*" title="Subir imagen" />
       <button>Enviar</button>
     </form>
   </div>
 
   <script>
-    // 🔧 Configuración inicial
     const API_URL = "http://localhost:3000"; // tu backend Express
     const socket = io(API_URL);
 
-    // 🔸 Datos simulados (reemplázalos con los del usuario logueado)
     const id_conversacion = 1;
-    const id_emisor = 1;
-    const nombre_emisor = "";
+    const id_usuario = 1;
+    const nombre_emisor = "Tú";
 
-    // DOM
     const form = document.getElementById('form');
     const input = document.getElementById('input');
+    const fileInput = document.getElementById('fileInput');
     const messages = document.getElementById('messages');
 
     socket.emit("joinRoom", id_conversacion);
 
-    // 🔹 Cargar historial
     async function cargarHistorial() {
       try {
         const res = await fetch(`${API_URL}/conversaciones/${id_conversacion}/mensajes`);
@@ -139,103 +146,89 @@
       }
     }
 
-    // 🔹 Enviar mensaje
-    form.addEventListener('submit', (e) => {
+    // Enviar mensaje o imagen
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (input.value.trim() === '') return;
+      const texto = input.value.trim();
+      const file = fileInput.files[0];
 
-      const data = {
-        id_conversacion,
-        id_emisor,
-        contenido: input.value,
-        tipo: "texto"
-      };
+      if (!texto && !file) return alert("Escribe un mensaje o selecciona una imagen");
 
-      socket.emit("sendMessage", data);
-      addMessage({ ...data, id_mensaje: Date.now(), nombre: nombre_emisor });
-      input.value = '';
+      const formData = new FormData();
+      formData.append("id_conversacion", id_conversacion);
+      formData.append("id_usuario", id_usuario);
+      formData.append("mensaje_usuario", texto);
+      if (file) formData.append("image", file);
+
+      addMessage({ id_emisor: id_usuario, contenido: texto, tipo: file ? "imagen" : "texto", nombre: nombre_emisor, ruta_imagen: file ? URL.createObjectURL(file) : null });
+
+      input.value = "";
+      fileInput.value = "";
+
+      try {
+        const res = await fetch(`${API_URL}/chatIA/mensaje`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          // Mostrar respuesta de la IA
+          addMessage({
+            id_emisor: "ia",
+            contenido: data.mensaje_ia,
+            tipo: "texto",
+            nombre: "RenalCare IA",
+          });
+
+          // Si hay datos nutricionales, mostrarlos
+          if (data.datos_nutricionales) {
+            const info = JSON.stringify(data.datos_nutricionales, null, 2);
+            addMessage({
+              id_emisor: "ia",
+              contenido: `📊 Datos nutricionales:\n${info}`,
+              tipo: "texto",
+              nombre: "RenalCare IA",
+            });
+          }
+        } else {
+          console.error("Error:", data.message);
+        }
+      } catch (err) {
+        console.error("Error al enviar mensaje:", err);
+      }
     });
 
-    // 🔹 Escuchar eventos
-    socket.on("newMessage", (mensaje) => addMessage(mensaje));
-socket.on("messageEdited", (mensaje) => {
-  const msgDiv = document.querySelector(`[data-id="${mensaje.id_mensaje}"]`);
-  if (msgDiv) {
-    const msgTextDiv = msgDiv.querySelector('.msg-text');
-    if (msgTextDiv) {
-      msgTextDiv.textContent = mensaje.contenido + " ✎";
-    }
-  }
-});
-
-    socket.on("messageDeleted", (id_mensaje) => {
-      const msgDiv = document.querySelector(`[data-id="${id_mensaje}"]`);
-      if (msgDiv) msgDiv.remove();
-    });
-
-    // 🔹 Mostrar mensaje
+    // Mostrar mensaje
     function addMessage(m) {
       const div = document.createElement('div');
-      div.classList.add('msg', m.id_emisor === id_emisor ? 'mine' : 'theirs');
+      div.classList.add('msg', m.id_emisor === id_usuario ? 'mine' : 'theirs');
       div.dataset.id = m.id_mensaje || Math.random();
 
       const name = document.createElement('div');
       name.classList.add('user-name');
-      name.textContent = m.nombre || (m.id_emisor === id_emisor ? 'Tú' : `Usuario ${m.id_emisor}`);
-
-      const text = document.createElement('div');
-      text.classList.add('msg-text');
-      text.textContent = m.contenido;
+      name.textContent = m.nombre || (m.id_emisor === id_usuario ? 'Tú' : 'RenalCare IA');
 
       div.appendChild(name);
-      div.appendChild(text);
 
-      // Si es mío → mostrar botones editar / eliminar
-      if (m.id_emisor === id_emisor) {
-        const buttons = document.createElement('div');
-        buttons.classList.add('msg-buttons');
-        buttons.innerHTML = `
-          <button class="edit-btn" title="Editar">✎</button>
-          <button class="delete-btn" title="Eliminar">🗑️</button>
-        `;
-        div.appendChild(buttons);
+      // Texto
+      if (m.tipo === "texto" && m.contenido) {
+        const text = document.createElement('div');
+        text.classList.add('msg-text');
+        text.textContent = m.contenido;
+        div.appendChild(text);
+      }
+
+      // Imagen
+      if (m.tipo === "imagen" && m.ruta_imagen) {
+        const img = document.createElement('img');
+        img.src = m.ruta_imagen.startsWith("http") ? m.ruta_imagen : `${API_URL}${m.ruta_imagen}`;
+        div.appendChild(img);
       }
 
       messages.appendChild(div);
       messages.scrollTop = messages.scrollHeight;
     }
-
-    // 🔹 Delegar eventos para botones
-    messages.addEventListener('click', (e) => {
-      const msgDiv = e.target.closest('.msg');
-      if (!msgDiv) return;
-
-      const id_mensaje = msgDiv.dataset.id;
-      const msgTextDiv = msgDiv.querySelector('.msg-text');
-
-      // Editar mensaje
-      if (e.target.classList.contains('edit-btn')) {
-        const nuevoTexto = prompt("Editar mensaje:", msgTextDiv.textContent);
-        if (nuevoTexto && nuevoTexto.trim() !== "") {
-          socket.emit("editMessage", {
-            id_mensaje,
-            id_emisor,
-            id_conversacion,
-            contenido: nuevoTexto,
-            tipo: "texto"
-          });
-          msgTextDiv.textContent = nuevoTexto + " ✎";
-        }
-      }
-
-      // Eliminar mensaje
-      if (e.target.classList.contains('delete-btn')) {
-        if (confirm("¿Eliminar este mensaje?")) {
-          socket.emit("deleteMessage", { id_mensaje, id_conversacion });
-          msgDiv.remove();
-        }
-      }
-    });
 
     cargarHistorial();
   </script>

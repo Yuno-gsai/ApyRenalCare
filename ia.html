@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat IA - Voz y Texto</title>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--glass:rgba(255,255,255,0.04)}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    body{margin:0;background:linear-gradient(180deg,#071023 0%, #07172a 100%);color:#e6eef8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .app{width:100%;max-width:1150px;background:radial-gradient(1200px 400px at 10% 10%, rgba(6,182,212,0.06), transparent 8%), var(--card);border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(2,6,23,0.6)}
+    header{display:flex;align-items:center;gap:12px}
+    header h1{margin:0;font-size:18px}
+    .tabs{display:flex;gap:8px;margin-top:12px}
+    .tab{padding:8px 12px;border-radius:8px;background:var(--glass);cursor:pointer;color:var(--muted)}
+    .tab.active{background:linear-gradient(90deg, rgba(6,182,212,0.12), rgba(6,182,212,0.06));color:#e6eef8}
+    .grid{display:grid;grid-template-columns:320px 1fr;gap:16px;margin-top:16px}
+    .panel{background:transparent;border-radius:10px;padding:12px;min-height:480px}
+    .card{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=text], select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    button{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#042027;cursor:pointer}
+    .small{padding:6px 10px;font-size:13px}
+    .chat{display:flex;flex-direction:column;height:480px;background:rgba(255,255,255,0.01);border-radius:10px;overflow:hidden}
+    .messages{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .msg{max-width:75%;padding:10px;border-radius:10px;background:rgba(255,255,255,0.02)}
+    .msg.user{align-self:flex-end;background:linear-gradient(90deg, rgba(6,182,212,0.12), rgba(6,182,212,0.06))}
+    .msg.ia{align-self:flex-start;background:rgba(255,255,255,0.02)}
+    .composer{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,0.02)}
+    .composer input[type=text]{flex:1}
+    .image-preview{max-width:160px;border-radius:6px;margin-top:8px;border:1px solid rgba(255,255,255,0.04)}
+    .convs-list{margin-top:8px;max-height:240px;overflow:auto}
+    .conv-item{padding:8px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);cursor:pointer}
+    .conv-item:hover{background:rgba(6,182,212,0.08)}
+    footer{margin-top:12px;color:var(--muted);font-size:13px}
+    @media(max-width:880px){.grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(90deg,#06b6d4,#7c3aed)"></div>
+      <div>
+        <h1>Chat IA (Voz + Texto)</h1>
+        <div style="font-size:13px;color:var(--muted)">Conectado a /chatIA</div>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="texto">Chat escrito</div>
+      <div class="tab" data-tab="voz">Chat por voz</div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="card">
+          <label>Usuario ID</label>
+          <input id="input-usuario" type="text" value="2" />
+          <label style="margin-top:8px">Título conversación</label>
+          <input id="input-titulo" type="text" placeholder="Ej: Consejos de hidratación" />
+
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="btn-crear-conv">Crear conversación</button>
+            <div id="conv-info" style="align-self:center;color:var(--muted);margin-left:8px">Ninguna</div>
+          </div>
+
+          <hr style="margin:12px 0;border-color:rgba(255,255,255,0.02)" />
+          <button id="btn-cargar-convs" class="small">🔄 Cargar conversaciones</button>
+          <div class="convs-list" id="lista-convs"></div>
+
+          <hr style="margin:12px 0;border-color:rgba(255,255,255,0.02)" />
+          <label>Adjuntar imagen</label>
+          <input id="file-image" type="file" accept="image/*" />
+          <img id="preview" class="image-preview" style="display:none" />
+
+          <hr style="margin:12px 0;border-color:rgba(255,255,255,0.02)" />
+          <div id="panel-voz" style="display:none">
+            <label>Voz</label>
+            <select id="select-voice">
+              <option value="coral">coral</option>
+              <option value="luna">luna</option>
+              <option value="sky">sky</option>
+              <option value="verse">verse</option>
+            </select>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button id="btn-start-voice">Iniciar voz</button>
+              <button id="btn-stop-voice">Detener</button>
+            </div>
+            <div id="voice-status" style="margin-top:8px;color:var(--muted)"></div>
+          </div>
+        </div>
+        <footer>Backend en <b>http://localhost:3000</b></footer>
+      </div>
+
+      <div class="panel">
+        <div class="card chat">
+          <div style="padding:12px;border-bottom:1px solid rgba(255,255,255,0.02);display:flex;justify-content:space-between">
+            <strong>Chat</strong>
+            <div style="font-size:13px;color:var(--muted)">ID: <span id="display-conv">-</span></div>
+          </div>
+          <div class="messages" id="messages"></div>
+          <div class="composer">
+            <input id="input-text" type="text" placeholder="Escribe un mensaje..." />
+            <button id="btn-send">Enviar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <audio id="remoteAudio" autoplay></audio>
+
+  <script>
+    const BASE = 'http://localhost:3000';
+    let currentConv = null;
+    const messagesEl = document.getElementById('messages');
+    const preview = document.getElementById('preview');
+
+    // Mostrar imagen previa
+    document.getElementById('file-image').addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) {
+        const url = URL.createObjectURL(f);
+        preview.src = url;
+        preview.style.display = 'block';
+      } else preview.style.display = 'none';
+    });
+
+    function addMessage(text, who='ia', extra=''){
+      const el=document.createElement('div');
+      el.className='msg '+(who==='usuario'?'user':'ia');
+      el.innerHTML=`<div>${text}</div>${extra}`;
+      messagesEl.appendChild(el);
+      messagesEl.scrollTop=messagesEl.scrollHeight;
+    }
+
+    // Crear conversación
+    document.getElementById('btn-crear-conv').onclick=async()=>{
+      const id_usuario=document.getElementById('input-usuario').value||1;
+      const titulo=document.getElementById('input-titulo').value||'Conversación nueva';
+      const res=await fetch(`${BASE}/chatIA/nueva-conversacion`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id_usuario,titulo})
+      });
+      const data=await res.json();
+      if(data.success){
+        currentConv=data.id_conversacion;
+        document.getElementById('conv-info').innerText='Conv ID: '+currentConv;
+        document.getElementById('display-conv').innerText=currentConv;
+        messagesEl.innerHTML='';
+        addMessage('Conversación creada.','ia');
+      }
+    };
+
+    // Cargar conversaciones
+    document.getElementById('btn-cargar-convs').onclick=async()=>{
+      const id_usuario=document.getElementById('input-usuario').value||1;
+      const res=await fetch(`${BASE}/chatIA/conversaciones/${id_usuario}`);
+      const data=await res.json();
+      const list=document.getElementById('lista-convs');
+      list.innerHTML='';
+      if(data.success){
+        data.conversaciones.forEach(c=>{
+          const item=document.createElement('div');
+          item.className='conv-item';
+          item.innerHTML=`<strong>${c.titulo}</strong><br><small>${c.mensajes.length} mensajes</small>`;
+          item.onclick=()=>{
+            currentConv=c.id_conversacion;
+            document.getElementById('display-conv').innerText=currentConv;
+            messagesEl.innerHTML='';
+            c.mensajes.forEach(m=>{
+              let extra='';
+              if(m.url_imagen){
+                extra=`<br><img src="public${m.url_imagen}" class="image-preview">`;
+              }
+              addMessage(m.contenido,m.remitente,extra);
+            });
+          };
+          list.appendChild(item);
+        });
+      } else list.innerHTML='<div>No hay conversaciones</div>';
+    };
+
+    // Enviar mensaje o imagen
+    // Enviar mensaje o imagen
+document.getElementById('btn-send').onclick = async () => {
+  const texto = document.getElementById('input-text').value.trim();
+  const file = document.getElementById('file-image').files[0];
+  if (!texto && !file) {
+    alert('Escribe algo o selecciona una imagen');
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('id_conversacion', currentConv ?? '');
+  fd.append('id_usuario', document.getElementById('input-usuario').value || 2);
+  fd.append('mensaje_usuario', texto || '¿Qué opinas de esta imagen?');
+  if (file) fd.append('image', file);
+
+  // 🧩 Mostrar mensaje del usuario con imagen si aplica
+  let extraUser = '';
+  if (file) {
+    const url = URL.createObjectURL(file);
+    extraUser = `<br><img src="${url}" class="image-preview">`;
+  }
+  addMessage(texto || 'Imagen enviada', 'usuario', extraUser);
+
+  document.getElementById('input-text').value = '';
+
+  try {
+    const res = await fetch(`${BASE}/chatIA/mensaje`, { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (data.success) {
+      // 🔧 Actualiza ID de conversación si se acaba de crear
+      if (!currentConv) {
+        currentConv = data.id_conversacion;
+        document.getElementById('conv-info').innerText = 'Conv ID: ' + currentConv;
+        document.getElementById('display-conv').innerText = currentConv;
+      }
+
+      // 💬 Mostrar respuesta de la IA (con imagen si la hay)
+      let extraIA = '';
+      addMessage(data.mensaje_ia, 'ia', extraIA);
+    } else {
+      addMessage('Error procesando mensaje.', 'ia');
+    }
+  } catch (e) {
+    console.error(e);
+    addMessage('Error de conexión', 'ia');
+  }
+};
+
+
+    document.getElementById('input-text').addEventListener('keydown',e=>{
+      if(e.key==='Enter')document.getElementById('btn-send').click();
+    });
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(t=>{
+      t.onclick=()=>{
+        document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+        t.classList.add('active');
+        document.getElementById('panel-voz').style.display=t.dataset.tab==='voz'?'block':'none';
+      };
+    });
+
+
+    // 🎤 CHAT DE VOZ ==================================
+const audioEl = document.getElementById("remoteAudio");
+let pc = null, localStream = null;
+
+// Iniciar sesión de voz
+document.getElementById("btn-start-voice").onclick = async () => {
+  document.getElementById("voice-status").textContent = "Conectando...";
+  const voice = document.getElementById("select-voice").value;
+
+  // 1️⃣ Solicitar la sesión al backend
+  const res = await fetch(`${BASE}/chatIA/voice-session/2`);
+  const session = await res.json();
+  if (!session?.client_secret?.value) {
+    document.getElementById("voice-status").textContent = "Error creando sesión de voz.";
+    return;
+  }
+
+  // 2️⃣ Crear conexión WebRTC
+  pc = new RTCPeerConnection();
+
+  // 3️⃣ Reproducir el audio remoto
+  pc.ontrack = e => audioEl.srcObject = e.streams[0];
+
+  // 4️⃣ Capturar micrófono del usuario
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+  // 5️⃣ Crear una oferta local
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  // 6️⃣ Enviar la oferta a OpenAI Realtime
+  const sdpResponse = await fetch(
+    "https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.client_secret.value}`,
+        "Content-Type": "application/sdp"
+      },
+      body: offer.sdp,
+    }
+  );
+
+  // 7️⃣ Recibir la descripción remota
+  const answerSdp = await sdpResponse.text();
+  await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+  document.getElementById("voice-status").textContent = "Sesión de voz activa ✅";
+};
+
+// Detener sesión
+document.getElementById("btn-stop-voice").onclick = () => {
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  if (pc) pc.close();
+  document.getElementById("voice-status").textContent = "Sesión finalizada";
+};
+  </script>
+</body>
+</html>

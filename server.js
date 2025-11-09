@@ -27,6 +27,8 @@ import DialisisRouter from './routes/dialisis.js';
 import SignosVitalesRouter from './routes/signosVitales.js';
 import RecordatorioRouter from './routes/recordatorio.js';
 import ConversacionesRouter from './routes/conversaciones.js';
+import ChatIARouter from './routes/chatIA.js';
+import PacienteRouter from './routes/pacientes.js';
 
 app.use('/usuarios', UsuarioRouter);
 app.use('/doctores', DoctorRouter);
@@ -37,7 +39,8 @@ app.use('/dialisis', DialisisRouter);
 app.use('/signosVitales', SignosVitalesRouter);
 app.use('/recordatorios', RecordatorioRouter);
 app.use('/conversaciones', ConversacionesRouter);
-
+app.use('/chatIA', ChatIARouter);   
+app.use('/pacientes', PacienteRouter);
 
 io.on("connection", (socket) => {
     console.log("🟢 Usuario conectado:", socket.id);
