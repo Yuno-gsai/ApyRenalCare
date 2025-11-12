@@ -2,7 +2,7 @@ import db from '../DataBase/DataBase.js';
 
 export const getMensajesByConversacionID = async (id_conversacion) =>{
     try{
-        const [rows] = await db.promise().query('SELECT * FROM mensajes WHERE id_conversacion = ?', [id_conversacion]);
+        const [rows] = await db.promise().query('SELECT * FROM mensajes WHERE id_conversacion = ? ORDER BY fecha_envio ASC', [id_conversacion]);
         return rows;
     }catch(error){
         console.log(error);
@@ -17,9 +17,19 @@ export const postMensaje = async (data) => {
       [data.id_conversacion, data.id_emisor, data.contenido, data.tipo]
     );
 
-    // traer el mensaje recién insertado
+    // Traer el mensaje recién insertado con datos del usuario
     const [mensaje] = await db.promise().query(
-      'SELECT * FROM mensajes WHERE id_mensaje = ?',
+      `SELECT 
+        m.id_mensaje,
+        m.id_conversacion,
+        m.id_emisor,
+        m.contenido,
+        m.tipo,
+        m.fecha_envio,
+        u.nombre as nombre_emisor
+      FROM mensajes m
+      LEFT JOIN usuarios u ON m.id_emisor = u.id
+      WHERE m.id_mensaje = ?`,
       [result.insertId]
     );
 
@@ -29,7 +39,6 @@ export const postMensaje = async (data) => {
     return null;
   }
 };
-
 
 export const putMensaje = async (data) => {
   try {
@@ -54,7 +63,17 @@ export const putMensaje = async (data) => {
 
     // 2) Traer el mensaje actualizado y retornarlo
     const [rows] = await db.promise().query(
-      `SELECT * FROM mensajes WHERE id_mensaje = ?`,
+      `SELECT 
+        m.id_mensaje,
+        m.id_conversacion,
+        m.id_emisor,
+        m.contenido,
+        m.tipo,
+        m.fecha_envio,
+        u.nombre as nombre_emisor
+      FROM mensajes m
+      LEFT JOIN usuarios u ON m.id_emisor = u.id
+      WHERE m.id_mensaje = ?`,
       [data.id_mensaje]
     );
 
